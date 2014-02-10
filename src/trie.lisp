@@ -12,10 +12,17 @@
 
 (defconstant +trie-index-error+ most-negative-fixnum)
 
-(defstruct da
-  (cells (make-array 3 :initial-contents `((,+da-signature+ . ,+da-pool-begin+)
-                                           (-1 . -1)
-                                           (,+da-pool-begin+ . 0)))))
+(defstruct (da (:constructor %make-da))
+  (cells (make-array 512 :adjustable t :fill-pointer 0)))
+
+(defun make-da ()
+  (let ((da (%make-da)))
+    (loop with cells = (da-cells da)
+          for x in `((,+da-signature+ . ,+da-pool-begin+)
+                     (-1 . -1)
+                     (,+da-pool-begin+ . 0))
+          do (vector-push-extend x cells))
+    da))
 
 (define-condition da-error (error) ())
 (define-condition da-extend-pool-error (da-error) ())
@@ -150,14 +157,11 @@
         ((< to-index (da-size da))
          da)
         (t
-         (let ((new-begin (da-size da))
-               (new-cells (make-array (1+ to-index))))
-           (replace new-cells (da-cells da))
-           (setf (da-cells da) new-cells)
+         (let ((new-begin (da-size da)))
            ;; initialize new free list
-           (loop for i from new-begin to to-index
-                 do (setf (aref (da-cells da) i)
-                          (cons (- (1- i)) (- (1+ i)))))
+           (loop with cells = (da-cells da)
+                 for i from new-begin to to-index
+                 do (vector-push-extend (cons (- (1- i)) (- (1+ i))) cells))
            (let ((free-tail (- (da-get-base da (da-get-free-list da)))))
              (da-set-check da free-tail (- new-begin))
              (da-set-base da new-begin (- free-tail))
@@ -222,6 +226,6 @@
 
 #+nil
 (let ((da (make-da)))
-  ;; (da-put da #(1))
-  (da-insert-branch da (da-get-root da) 1)
+  (da-put da #(1))
+  ;; (da-insert-branch da (da-get-root da) 1)
   da)
