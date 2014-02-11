@@ -18,9 +18,9 @@
 (defun make-da ()
   (let ((da (%make-da)))
     (loop with cells = (da-cells da)
-          for x in `((,+da-signature+ . ,+da-pool-begin+)
-                     (-1 . -1)
-                     (,+da-pool-begin+ . 0))
+          for x in (list (cons +da-signature+ +da-pool-begin+)
+                         (cons -1  -1)
+                         (cons +da-pool-begin+ 0))
           do (vector-push-extend x cells))
     da))
 
@@ -41,12 +41,10 @@
   (cdr (aref (da-cells da) s)))
 
 (defun da-set-base (da s val)
-  (when (< s (da-size da))
-    (setf (car (aref (da-cells da) s)) val)))
+  (setf (car (aref (da-cells da) s)) val))
 
 (defun da-set-check (da s val)
-  (when (< s (da-size da))
-    (setf (cdr (aref (da-cells da) s)) val)))
+  (setf (cdr (aref (da-cells da) s)) val))
 
 (defun da-walk (da s c)
   (let ((next (+ (da-get-base da s) c)))

@@ -48,3 +48,20 @@
 ;;  101.49% CPU
 ;;  188,572,903 processor cycles
 ;;  0 bytes consed
+
+
+(let ((da (make-da)))
+  (da-put da #(0))
+  da)
+(let ((da (make-da)))
+  (da-put da #())
+  da)
+
+(let ((da (make-da)))
+  (da-insert-branch da (da-get-root da) 0)
+  da)
+;;⇒ #S(DA :CELLS #((3674004220 . 4) (-1 . -1) (3 . 0) (-1 . 2)))
+
+
+
+;;⇒ #S(DA :CELLS #((3674004220 . 5) (-3 . -3) (3 . 0) (-3 . -1) (-3 . 2)))
