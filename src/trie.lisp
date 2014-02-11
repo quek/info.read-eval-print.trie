@@ -80,20 +80,21 @@
   (and (da-extend-pool da s)
        (minusp (da-get-check da s))))
 
+(defun max-check-state-at-base (da base)
+  (min (+ base +trie-char-max+) (1- (da-size da))))
+
 (defun da-has-children-p (da s)
   (let ((base (da-get-base da s)))
-    (if (>= base 0)
-        (loop for c from 0 to (min +trie-char-max+ (- +trie-index-max+ base))
-              thereis (= (da-get-check da (+ base c)) s)))))
+    (and (plusp base)
+         (loop for i from base to (max-check-state-at-base da base)
+               thereis (= (da-get-check da i) s)))))
 
 (defun da-output-symbols (da s c)
   "base[s] を遷移元とする c を集める。"
   (let* ((base (da-get-base da s))
-         (symbols (loop with size = (da-size da)
-                        for c from 0 to (min +trie-char-max+ (- +trie-index-max+ base))
-                        for cs = (+ base c)
-                        if (and (< cs size) (= (da-get-check da cs) s))
-                          collect c)))
+         (symbols (loop for i from base to (max-check-state-at-base da base)
+                        if (= (da-get-check da i) s)
+                          collect (- i base))))
     (sort (if c (cons c symbols) symbols)
           #'<=)))
 
@@ -141,11 +142,9 @@
            (da-set-check da new-next s)
            (da-set-base da new-next old-next-base)
            (when (plusp old-next-base)
-             (loop with size = (da-size da)
-                   for c from 0 to (min +trie-char-max+ (- +trie-index-max+ old-next-base))
-                   for cs = (+ old-next-base c)
-                   if (and (< cs size) (= old-next (da-get-check da cs)))
-                     do (da-set-check da (+ old-next-base c) new-next))))
+             (loop for i from old-next-base to (max-check-state-at-base da old-next-base)
+                   if (= old-next (da-get-check da i))
+                     do (da-set-check da i new-next))))
   (da-set-base da s new-base))
 
 (defun da-extend-pool (da to-index)
@@ -174,8 +173,8 @@
 
 (defun da-prune-upto (da p s)
   (loop for i = s then parent
-        while (and (/= p i)
-                   (not (da-has-children-p da i)))
+        until (or (= p i)
+                  (da-has-children-p da i))
         for parent = (da-get-check da i)
         do (da-free-cell da i)))
 
@@ -186,9 +185,15 @@
     (da-set-base da next (- prev))))
 
 (defun da-free-cell (da cell)
-  (loop for i = (- (da-get-check da (da-get-free-list da))) then (- (da-get-check da i))
-        while (and (/= i (da-get-free-list da))
-                   (< i cell))))
+  (loop with free = (da-get-free-list da)
+        for i = (- (da-get-check da free)) then (- (da-get-check da i))
+        while (and (/= i free)
+                   (< i cell))
+        finally (let ((prev (- (da-get-base da i))))
+                  (da-set-base da cell (- prev))
+                  (da-set-check da cell (- i))
+                  (da-set-base da i (- cell))
+                  (da-set-check da prev (- cell)))))
 
 (defun da-enumerate (da fun user-data)
   (da-enumerate-recursive da (da-get-root da) fun user-data))
@@ -221,6 +226,11 @@
              (incf i))
     (da-insert-branch da s +da-key-end+)))
 
+(defun da-delete (da key)
+  (awhen (da-get da key)
+    (da-set-base da it 0)
+    (da-prune da it)
+    it))
 
 #+nil
 (let ((da (make-da)))
