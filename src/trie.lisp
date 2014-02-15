@@ -1,239 +1,36 @@
 (in-package :info.read-eval-print.trie)
 
-(defconstant +da-signature+ #xDAFCDAFC)
+(defstruct trie
+  (da (make-da))
+  (data (make-data-strage)))
 
-(defconstant +da-pool-begin+ 3)
+(defun trie-put (trie key value)
+  (let* ((da (trie-da trie))
+         (key-index (da-put da key))
+         (data-index (data-put (trie-data trie) value)))
+    (da-set-base da key-index (- data-index))))
 
-(defconstant +trie-index-max+ #x7fffffff)
+(defun trie-get (trie key)
+  (let ((da (trie-da trie)))
+    (awhen (da-get da key)
+      (data-get (trie-data trie) (- (da-get-base da it))))))
 
-(defconstant +da-key-end+ 256)
-(defconstant +trie-char-max+ +da-key-end+)
+(defun trie-delete (trie key)
+  (let* ((da (trie-da trie)))
+    (multiple-value-bind (key-index data-index) (da-delete da key)
+      (when key-index
+        (data-delete (trie-data trie) (- data-index))))))
 
-
-(defconstant +trie-index-error+ most-negative-fixnum)
-
-(defstruct (da (:constructor %make-da))
-  (cells (make-array 512 :adjustable t :fill-pointer 0)))
-
-(defun make-da ()
-  (let ((da (%make-da)))
-    (loop with cells = (da-cells da)
-          for x in (list (cons +da-signature+ +da-pool-begin+)
-                         (cons -1  -1)
-                         (cons +da-pool-begin+ 0))
-          do (vector-push-extend x cells))
-    da))
-
-(define-condition da-error (error) ())
-(define-condition da-extend-pool-error (da-error) ())
-
-(defun da-size (da)
-  (length (da-cells da)))
-
-(defun da-get-root (da)
-  (declare (ignore da))
-  2)
-
-(defun da-get-base (da s)
-  (car (aref (da-cells da) s)))
-
-(defun da-get-check (da s)
-  (cdr (aref (da-cells da) s)))
-
-(defun da-set-base (da s val)
-  (setf (car (aref (da-cells da) s)) val))
-
-(defun da-set-check (da s val)
-  (setf (cdr (aref (da-cells da) s)) val))
-
-(defun da-walk (da s c)
-  (let ((next (+ (da-get-base da s) c)))
-    (if (and (not (minusp next))
-             (< next (da-size da))
-             (= (da-get-check da next) s))
-        next
-        nil)))
-
-(defun da-insert-branch (da s c)
-  (let (next
-        (base (da-get-base da s)))
-    (if (plusp base)
-        (progn
-          (setf next (+ base c))
-          (when (and (< next (da-size da))
-                     (= (da-get-check da next) s))
-            (return-from da-insert-branch next))
-          (when (or (> base +trie-index-max+)
-                    (not (da-check-free-cell da next)))
-            (let* ((symbols (da-output-symbols da s c))
-                   (new-base (da-find-free-base da symbols)))
-              (da-relocate-base da s new-base)
-              (setf next (+ new-base c)))))
-        (let ((new-base (da-find-free-base da (list c))))
-          (da-set-base da s new-base)
-          (setf next (+ new-base c))))
-    (da-alloc-cell da next)
-    (da-set-check da next s)
-    next))
-
-(defun da-check-free-cell (da s)
-  (and (da-extend-pool da s)
-       (minusp (da-get-check da s))))
-
-(defun max-check-state-at-base (da base)
-  (min (+ base +trie-char-max+) (1- (da-size da))))
-
-(defun da-has-children-p (da s)
-  (let ((base (da-get-base da s)))
-    (and (plusp base)
-         (loop for i from base to (max-check-state-at-base da base)
-               thereis (= (da-get-check da i) s)))))
-
-(defun da-output-symbols (da s c)
-  "base[s] を遷移元とする c を集める。"
-  (let* ((base (da-get-base da s))
-         (symbols (loop for i from base to (max-check-state-at-base da base)
-                        if (= (da-get-check da i) s)
-                          collect (- i base))))
-    (sort (if c (cons c symbols) symbols)
-          #'<=)))
-
-(defun da-get-state-key (da s)
-  (nreverse
-   (loop for state = s then parent
-         until (= (da-get-root da) state)
-         for parent = (da-get-check da state)
-         collect (- state (da-get-base da parent)))))
-
-(defun da-get-free-list (da)
-  (declare (ignore da))
-  1)
-
-(defun da-find-free-base (da symbols)
-  (let ((first-sym (car symbols))
-        (s (- (da-get-check da (da-get-free-list da)))))
-    (loop while (and (/= s (da-get-free-list da))
-                     (< s (+ first-sym +da-pool-begin+)))
-          do (setf s (- (da-get-check da s))))
-    (when (= s (da-get-free-list da))
-      (setf s (+ first-sym +da-pool-begin+))
-      (loop do (da-extend-pool da s)
-            if (minusp (da-get-check da s))
-              do (loop-finish)
-            do (incf s)))
-    (loop until (da-fit-symbols da (- s first-sym) symbols)
-          do (if (= (- (da-get-check da s)) (da-get-free-list da))
-                 (da-extend-pool da (da-size da)))
-             (setf s (- (da-get-check da s))))
-    (- s first-sym)))
-
-(defun da-fit-symbols (da base symbols)
-  (not (loop for sym in symbols
-             thereis (or (> base (- +trie-index-max+ sym))
-                         (not (da-check-free-cell da (+ base sym)))))))
-
-(defun da-relocate-base (da s new-base)
-  (loop with old-base = (da-get-base da s)
-        for sym in (da-output-symbols da s nil)
-        for old-next = (+ old-base sym)
-        for new-next = (+ new-base sym)
-        for old-next-base = (da-get-base da old-next)
-        do (da-alloc-cell da new-next)
-           (da-set-check da new-next s)
-           (da-set-base da new-next old-next-base)
-           (when (plusp old-next-base)
-             (loop for i from old-next-base to (max-check-state-at-base da old-next-base)
-                   if (= old-next (da-get-check da i))
-                     do (da-set-check da i new-next))))
-  (da-set-base da s new-base))
-
-(defun da-extend-pool (da to-index)
-  (cond ((or (<= to-index 0)
-             (<= +trie-index-max+ to-index))
-         (error 'da-extend-pool-error))
-        ((< to-index (da-size da))
-         da)
-        (t
-         (let ((new-begin (da-size da)))
-           ;; initialize new free list
-           (loop with cells = (da-cells da)
-                 for i from new-begin to to-index
-                 do (vector-push-extend (cons (- (1- i)) (- (1+ i))) cells))
-           (let ((free-tail (- (da-get-base da (da-get-free-list da)))))
-             (da-set-check da free-tail (- new-begin))
-             (da-set-base da new-begin (- free-tail))
-             (da-set-check da to-index (- (da-get-free-list da)))
-             (da-set-base da (da-get-free-list da) (- to-index)))
-           ;; update header cell
-           (da-set-check da 0 (da-size da))
-           da))))
-
-(defun da-prune (da s)
-  (da-prune-upto da (da-get-root da) s))
-
-(defun da-prune-upto (da p s)
-  (loop for i = s then parent
-        until (or (= p i)
-                  (da-has-children-p da i))
-        for parent = (da-get-check da i)
-        do (da-free-cell da i)))
-
-(defun da-alloc-cell (da cell)
-  (let ((prev (- (da-get-base da cell)))
-        (next (- (da-get-check da cell))))
-    (da-set-check da prev (- next))
-    (da-set-base da next (- prev))))
-
-(defun da-free-cell (da cell)
-  (loop with free = (da-get-free-list da)
-        for i = (- (da-get-check da free)) then (- (da-get-check da i))
-        while (and (/= i free)
-                   (< i cell))
-        finally (let ((prev (- (da-get-base da i))))
-                  (da-set-base da cell (- prev))
-                  (da-set-check da cell (- i))
-                  (da-set-base da i (- cell))
-                  (da-set-check da prev (- cell)))))
-
-(defun da-enumerate (da fun user-data)
-  (da-enumerate-recursive da (da-get-root da) fun user-data))
-
-(defun da-enumerate-recursive (da state fun user-data)
-  (let ((base (da-get-base da state)))
-    (if (< base 0)
-        (funcall fun (da-get-state-key da state) state user-data)
-        (loop for sym in (da-output-symbols da state nil)
-              always(da-enumerate-recursive da (+ base sym) fun user-data)))))
-
-
-(defun da-get (da key)
-  (let ((s (da-get-root da)))
-    (and (loop for c across key
-               always (setf s (da-walk da s c)))
-         (da-walk da s +da-key-end+))))
-
-(defun da-put (da key)
-  (let ((s (da-get-root da))
-        (i 0)
-        (key-length (length key)))
-    (loop while (< i key-length)
-          for x = (da-walk da s (aref key i))
-          while x
-          do (setf s x)
-             (incf i))
-    (loop while (< i key-length)
-          do (setf s (da-insert-branch da s (aref key i)))
-             (incf i))
-    (da-insert-branch da s +da-key-end+)))
-
-(defun da-delete (da key)
-  (awhen (da-get da key)
-    (da-set-base da it 0)
-    (da-prune da it)
-    it))
 
 #+nil
-(let ((da (make-da)))
-  (da-put da #(1))
-  ;; (da-insert-branch da (da-get-root da) 1)
-  da)
+(let ((trie (make-trie)))
+  (trie-put trie #(1) #(2))
+  (trie-get trie #(1)))
+;;⇒ #(2)
+
+#+nil
+(let ((trie (make-trie)))
+  (trie-put trie #(1) #(2))
+  (trie-delete trie #(1))
+  (trie-get trie #(1)))
+;;⇒ NIL

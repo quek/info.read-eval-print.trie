@@ -1,3 +1,6 @@
 (defpackage :info.read-eval-print.trie
  (:use :cl :anaphora)
- (:export))
+ (:export #:make-trie
+          #:trie-get
+          #:trie-put
+          #:trie-delete))

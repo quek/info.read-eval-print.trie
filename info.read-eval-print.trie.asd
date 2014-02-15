@@ -5,5 +5,7 @@
   :license "BSD"
   :pathname "src/"
   :components ((:file "package")
+               (:file "da")
+               (:file "data")
                (:file "trie"))
   :depends-on (:anaphora))
