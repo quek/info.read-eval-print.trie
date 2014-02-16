@@ -220,11 +220,14 @@
           for x = (da-walk da s (aref key i))
           while x
           do (setf s x)
-             (incf i))
+             (incf i)
+          finally (when x
+                    (awhen (da-walk da x +da-key-end+)
+                      (return-from da-put (values it nil)))))
     (loop while (< i key-length)
           do (setf s (da-insert-branch da s (aref key i)))
              (incf i))
-    (da-insert-branch da s +da-key-end+)))
+    (values (da-insert-branch da s +da-key-end+) t)))
 
 (defun da-delete (da key)
   (awhen (da-get da key)

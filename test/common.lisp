@@ -11,3 +11,9 @@
           #'(lambda (a b)
               (declare (ignore a b))
               (<= (random 10 s) (random 10 s))))))
+
+(defmacro with-test-dir ((dir-var &optional (dir-path "/tmp/trie-test/")) &body body)
+  `(let ((,dir-var ,dir-path))
+     (ignore-errors (sb-ext:delete-directory ,dir-var :recursive t))
+     (ensure-directories-exist ,dir-var)
+     ,@body))

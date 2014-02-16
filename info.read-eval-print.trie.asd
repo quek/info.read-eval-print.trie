@@ -5,6 +5,7 @@
   :license "BSD"
   :pathname "src/"
   :components ((:file "package")
+               (:file "util")
                (:file "da")
                (:file "data")
                (:file "trie"))

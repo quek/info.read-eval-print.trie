@@ -4,7 +4,8 @@
   :components ((:file "package")
                (:file "common")
                (:file "da")
-               (:file "trie")
+               (:file "test-file-segment")
+               (:file "test-trie")
                (:file "run"))
   :depends-on (:info.read-eval-print.trie
                :fiveam))
