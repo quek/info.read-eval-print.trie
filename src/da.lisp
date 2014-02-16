@@ -6,8 +6,15 @@
 
 (defconstant +trie-index-max+ #x7fffffff)
 
-(defconstant +da-key-end+ 256)
-(defconstant +trie-char-max+ +da-key-end+)
+(defconstant +da-key-end+ 7 "全てのキーは +da-key-end+ で終わるのので 7 にして、7 は 256 にする")
+(defmacro c (c)
+  (let ((x (gensym)))
+    `(let ((,x ,c))
+       (if (= ,x +da-key-end+)
+           256
+           ,x))))
+
+(defconstant +trie-char-max+ 256 "#xff + 1(+da-key-end+)")
 
 
 (defconstant +trie-index-error+ most-negative-fixnum)
@@ -63,7 +70,7 @@
           (when (and (< next (da-size da))
                      (= (da-get-check da next) s))
             (return-from da-insert-branch next))
-          (when (or (> base +trie-index-max+)
+          (when (or (> (+ base c) +trie-index-max+)
                     (not (da-check-free-cell da next)))
             (let* ((symbols (da-output-symbols da s c))
                    (new-base (da-find-free-base da symbols)))
@@ -144,7 +151,8 @@
            (when (plusp old-next-base)
              (loop for i from old-next-base to (max-check-state-at-base da old-next-base)
                    if (= old-next (da-get-check da i))
-                     do (da-set-check da i new-next))))
+                     do (da-set-check da i new-next)))
+           (da-free-cell da old-next))
   (da-set-base da s new-base))
 
 (defun da-extend-pool (da to-index)
@@ -208,7 +216,8 @@
 
 (defun da-get (da key)
   (let ((s (da-get-root da)))
-    (and (loop for c across key
+    (and (loop for x across key
+               for c = (c x)
                always (setf s (da-walk da s c)))
          (da-walk da s +da-key-end+))))
 
@@ -217,7 +226,8 @@
         (i 0)
         (key-length (length key)))
     (loop while (< i key-length)
-          for x = (da-walk da s (aref key i))
+          for c = (c (aref key i))
+          for x = (da-walk da s c)
           while x
           do (setf s x)
              (incf i)
@@ -225,7 +235,8 @@
                     (awhen (da-walk da x +da-key-end+)
                       (return-from da-put (values it nil)))))
     (loop while (< i key-length)
-          do (setf s (da-insert-branch da s (aref key i)))
+          for c = (c (aref key i))
+          do (setf s (da-insert-branch da s c))
              (incf i))
     (values (da-insert-branch da s +da-key-end+) t)))
 

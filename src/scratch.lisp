@@ -34,7 +34,29 @@
   (time (and (loop for x in *data-a*
                    always (da-get da x))
              (loop for x in *data-b*
+                   for i from 0
+                      if (da-get da x) do (print i)
                    never (da-get da x)))))
+;;→ 
+;;   1279 
+;;⇒ NIL
+
+
+;;2014-02-16
+;;Evaluation took:
+;;  1.865 seconds of real time
+;;  1.852000 seconds of total run time (1.852000 user, 0.000000 system)
+;;  99.30% CPU
+;;  5,203,238,789 processor cycles
+;;  25,406,336 bytes consed
+;;
+;;Evaluation took:
+;;  0.050 seconds of real time
+;;  0.052000 seconds of total run time (0.052000 user, 0.000000 system)
+;;  104.00% CPU
+;;  139,507,396 processor cycles
+;;  20,000 bytes consed
+
 ;;Evaluation took:
 ;;  2.120 seconds of real time
 ;;  2.120000 seconds of total run time (2.120000 user, 0.000000 system)
