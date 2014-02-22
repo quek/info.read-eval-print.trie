@@ -86,3 +86,11 @@
                  (is-false
                   (loop for word in not-put-words
                         never (info.read-eval-print.trie::da-get da word)))))))))
+
+(test test-da-save-load
+  (let ((a (info.read-eval-print.trie::make-da))
+        (b (info.read-eval-print.trie::make-da)))
+    (info.read-eval-print.trie::da-put a #(1 2 3 4 5 6 7 8 9))
+    (info.read-eval-print.trie::da-save a "/tmp/da")
+    (info.read-eval-print.trie::da-load b "/tmp/da")
+    (is (equalp a b))))

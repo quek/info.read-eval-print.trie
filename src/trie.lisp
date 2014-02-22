@@ -17,23 +17,37 @@
    (data)))
 
 (defclass file-strage-trie (trie)
-  ())
+  ((directory :initarg :directory)))
 
 (defclass in-memory-trie (trie)
   ())
 
 
-(defmethod trie-open (trie)
-  (with-slots (data) trie
+(defmethod trie-da-path ((trie file-strage-trie))
+  (merge-pathnames "da" (slot-value trie 'directory)))
+
+(defmethod trie-flush-da ((trie file-strage-trie))
+  (with-slots (da) trie
+    (da-save da (trie-da-path trie))))
+
+
+(defmethod trie-open (trie))
+
+(defmethod trie-open ((trie file-strage-trie))
+  (with-slots (da data) trie
+    (da-load da (trie-da-path trie))
     (data-open data)))
 
-(defmethod trie-close (trie)
+(defmethod trie-close (trie))
+
+(defmethod trie-close ((trie file-strage-trie))
   (with-slots (data) trie
+    (trie-flush-da trie)
     (data-close data)))
 
 
-(defmethod initialize-instance :after ((trie file-strage-trie) &key directory)
-  (with-slots (data) trie
+(defmethod initialize-instance :after ((trie file-strage-trie) &key)
+  (with-slots (data directory) trie
     (ensure-directories-exist directory)
     (setf data (make-instance 'file-data-strage :directory directory))))
 
@@ -47,9 +61,11 @@
     (multiple-value-bind (key-index put-p) (da-put da key)
       (unless put-p
         ;;TODO replace じゃないとね
-        (print (list key-index (da-get-base da key-index)))
         (data-delete data (- (da-get-base da key-index))))
       (da-set-base da key-index (- (data-put data value))))))
+
+(defmethod trie-put :after ((trie file-strage-trie) key value)
+  (trie-flush-da trie))
 
 (defmethod trie-get (trie key)
   (with-slots (da data) trie
@@ -62,7 +78,16 @@
       (when key-index
         (data-delete data (- data-index))))))
 
+(defmethod trie-delete :after ((trie file-strage-trie) key)
+  (trie-flush-da trie))
 
+
+(defmacro with-open-trie ((var trie) &body body)
+  `(let ((,var ,trie))
+     (trie-open ,var)
+     (unwind-protect
+          (progn ,@body)
+       (trie-close ,var))))
 #+nil
 (let ((trie (make-file-trie "/tmp/trie/")))
   (data-open (trie-data trie))

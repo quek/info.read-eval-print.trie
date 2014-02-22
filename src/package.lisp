@@ -6,4 +6,5 @@
           #:trie-close
           #:trie-get
           #:trie-put
-          #:trie-delete))
+          #:trie-delete
+          #:with-open-trie))

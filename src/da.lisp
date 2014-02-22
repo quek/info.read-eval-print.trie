@@ -1,6 +1,6 @@
 (in-package :info.read-eval-print.trie)
 
-(defconstant +da-signature+ #xDAFCDAFC)
+(defconstant +da-signature+ #x4AFCDAFC)
 
 (defconstant +da-pool-begin+ 3)
 
@@ -235,3 +235,24 @@
       (da-set-base da it 0)
       (da-prune da it)
       (values it data-index))))
+
+
+(defun da-save (da path)
+  (with-open-file (out path :direction :output
+                            :element-type '(signed-byte 32)
+                            :if-exists :supersede)
+    (loop for x across (da-cells da)
+          do (write-byte (car x) out)
+             (write-byte (cdr x) out))))
+
+(defun da-load (da path)
+  (if (probe-file path)
+      (let ((cells (da-cells da)))
+        (setf (fill-pointer cells) 0)
+        (with-open-file (in path :direction :input
+                                 :element-type '(signed-byte 32))
+          (loop for a = (read-byte in nil)
+                for b = (read-byte in nil)
+                while a
+                do (vector-push-extend (cons a b) cells))
+          da))))

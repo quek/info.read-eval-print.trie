@@ -49,15 +49,31 @@
 ;;  188,572,903 processor cycles
 ;;  0 bytes consed
 
+(progn
+  (asdf/run-program:run-program "rm -rf /tmp/trie")
+  (with-open-trie (trie (make-file-trie "/tmp/trie/"))
+    (time (loop for x in (subseq *data* 0 10000)
+                do (trie-put trie x x)))))
+;;⇒ NIL
 
-(let ((da (make-da)))
-  (da-put da #(0))
-  da)
-(let ((da (make-da)))
-  (da-put da #())
-  da)
+(with-open-trie (trie (make-file-trie "/tmp/trie/"))
+  (time (loop for x in (subseq *data* 0 10000)
+              always (equalp x (trie-get trie x)))))
+;;⇒ T
 
-(let ((da (make-da)))
-  (da-insert-branch da (da-get-root da) 0)
-  da)
-;;⇒ #S(DA :CELLS #((3674004220 . 4) (-1 . -1) (3 . 0) (-1 . 2)))
+
+
+
+
+(progn
+  (let ((trie (make-file-trie "/tmp/trie/")))
+    (with-open-trie (trie trie)
+      (trie-put trie #(1) #(1 1))))
+  (let ((trie (make-file-trie "/tmp/trie/")))
+    (with-open-trie (trie trie)
+      (trie-get trie #(1)))))
+;;→ 
+;;   (259 0) 
+;;⇒ #(1 1)
+
+
