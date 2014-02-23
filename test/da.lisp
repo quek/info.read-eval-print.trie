@@ -48,44 +48,6 @@
     (is-false (info.read-eval-print.trie::da-get da #(1 2 3 4)))))
 
 
-(test test-da-by-dict/words
-  (loop for i from 0
-        for word in *words*
-        if (zerop (mod i 5))
-          collect word into not-put-words
-        else
-          collect word into put-words
-        finally
-           (time
-            (let ((da (info.read-eval-print.trie::make-da)))
-              (loop for word in put-words
-                    do (info.read-eval-print.trie::da-put da word))
-              (is-true
-               (loop for word in put-words
-                     always (info.read-eval-print.trie::da-get da word)))
-              (is-true
-               (loop for word in not-put-words
-                     never (info.read-eval-print.trie::da-get da word)))
-
-              (let* ((count 100)
-                     (delete-words (subseq put-words 0 count)))
-                (loop for word in delete-words
-                      do (info.read-eval-print.trie::da-delete da word))
-                (is-true
-                 (loop for word in delete-words
-                       never (info.read-eval-print.trie::da-get da word)))
-                (is-true
-                 (loop for word in (subseq put-words count)
-                       always (info.read-eval-print.trie::da-get da word)))
-
-                (loop for word in delete-words
-                      do (info.read-eval-print.trie::da-put da word))
-                (is-true
-                 (loop for word in put-words
-                       always (info.read-eval-print.trie::da-get da word))
-                 (is-false
-                  (loop for word in not-put-words
-                        never (info.read-eval-print.trie::da-get da word)))))))))
 
 (test test-da-save-load
   (let ((a (info.read-eval-print.trie::make-da))

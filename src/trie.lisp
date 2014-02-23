@@ -6,11 +6,8 @@
 (defgeneric trie-put (trie key vlaue))
 (defgeneric trie-delete (trie key))
 
-(defun make-file-trie (directory)
+(defun make-trie (directory)
   (make-instance 'file-strage-trie :directory directory))
-
-(defun make-memory-trie ()
-  (make-instance 'in-memory-trie))
 
 (defclass trie ()
   ((da :initform (make-da))
@@ -18,9 +15,6 @@
 
 (defclass file-strage-trie (trie)
   ((directory :initarg :directory)))
-
-(defclass in-memory-trie (trie)
-  ())
 
 
 (defmethod trie-da-path ((trie file-strage-trie))
@@ -50,11 +44,6 @@
   (with-slots (data directory) trie
     (ensure-directories-exist directory)
     (setf data (make-instance 'file-data-strage :directory directory))))
-
-(defmethod initialize-instance :after ((trie in-memory-trie) &key)
-  (with-slots (data) trie
-    (setf data (make-instance 'in-memory-data-strage))))
-
 
 (defmethod trie-put (trie key value)
   (with-slots (da data) trie

@@ -14,9 +14,6 @@
 (defclass file-data-strage (data-strage)
   ((directory :initarg :directory)))
 
-(defclass in-memory-data-strage (data-strage)
-  ())
-
 
 (defmethod initialize-instance :after ((file-data-strage file-data-strage) &key)
   (with-slots (directory segments) file-data-strage
@@ -25,14 +22,6 @@
                                                         :size (expt 2 i)
                                                         :directory directory))
                            'vector))))
-
-(defmethod initialize-instance :after ((data-strage in-memory-data-strage) &key)
-  (with-slots (segments) data-strage
-    (setf segments (coerce (loop for i from 3 to 32
-                                 collect (make-instance 'in-memory-segment
-                                                        :size (expt 2 i)))
-                           'vector))))
-
 
 (defmethod data-open (data-strage)
   (with-slots (segments) data-strage
@@ -83,10 +72,6 @@
   ((length-size :initarg :length-size)
    (path :initarg :path)
    (stream)))
-
-(defclass in-memory-segment (segment)
-  ((array :initform (make-array 1 :adjustable t :fill-pointer t
-                                  :initial-contents (list 0)))))
 
 
 (defmethod initialize-instance :after ((segment file-segment) &key size directory)
@@ -186,27 +171,6 @@
       (file-position stream (index-to-file-position index size length-size))
       (write-u4 stream free-index))))
 
-
-(defmethod segment-put ((segment in-memory-segment) data)
-  (with-slots (array) segment
-    (let ((free-index (aref array 0)))
-      (if (zerop free-index)
-          (progn
-            (vector-push-extend data array)
-            (1- (length array)))
-          (progn
-            (setf (aref array 0) (aref array free-index)
-                  (aref array free-index) data)
-            free-index)))))
-
-(defmethod segment-get ((segment in-memory-segment) index)
-  (with-slots (array) segment
-    (aref array index)))
-
-(defmethod segment-delete ((segment in-memory-segment) index)
-  (with-slots (array) segment
-    (setf (aref array index) (aref array 0)
-          (aref array 0) index)))
 
 
 (defun decode-index (index)
