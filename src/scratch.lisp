@@ -37,9 +37,7 @@
                    for i from 0
                       if (da-get da x) do (print i)
                    never (da-get da x)))))
-;;→ 
-;;   1279 
-;;⇒ NIL
+;;⇒ T
 
 
 ;;2014-02-16
@@ -83,19 +81,12 @@
               always (equalp x (trie-get trie x)))))
 ;;⇒ T
 
-
-
-
-
 (progn
+  (asdf/run-program:run-program "rm -rf /tmp/trie")
   (let ((trie (make-file-trie "/tmp/trie/")))
     (with-open-trie (trie trie)
       (trie-put trie #(1) #(1 1))))
   (let ((trie (make-file-trie "/tmp/trie/")))
     (with-open-trie (trie trie)
       (trie-get trie #(1)))))
-;;→ 
-;;   (259 0) 
 ;;⇒ #(1 1)
-
-

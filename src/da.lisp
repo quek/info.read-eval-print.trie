@@ -20,7 +20,8 @@
 (defconstant +trie-index-error+ most-negative-fixnum)
 
 (defstruct (da (:constructor %make-da))
-  (cells (make-array 512 :adjustable t :fill-pointer 0)))
+  (cells (make-array 512 :adjustable t :fill-pointer 0))
+  (dirty-list ()))
 
 (defun make-da ()
   (let ((da (%make-da)))
@@ -28,11 +29,19 @@
           for x in (list (cons +da-signature+ +da-pool-begin+)
                          (cons -1  -1)
                          (cons +da-pool-begin+ 0))
-          do (vector-push-extend x cells))
+          for i from 0
+          do (vector-push-extend x cells)
+             (da-set-dirty da i))
     da))
 
 (define-condition da-error (error) ())
 (define-condition da-extend-pool-error (da-error) ())
+
+(defun da-clear-dirty (da)
+  (setf (da-dirty-list da) ()))
+
+(defun da-set-dirty (da s)
+  (pushnew s (da-dirty-list da)))
 
 (defun da-size (da)
   (length (da-cells da)))
@@ -48,9 +57,11 @@
   (cdr (aref (da-cells da) s)))
 
 (defun da-set-base (da s val)
+  (da-set-dirty da s)
   (setf (car (aref (da-cells da) s)) val))
 
 (defun da-set-check (da s val)
+  (da-set-dirty da s)
   (setf (cdr (aref (da-cells da) s)) val))
 
 (defun da-walk (da s c)
@@ -166,7 +177,8 @@
            ;; initialize new free list
            (loop with cells = (da-cells da)
                  for i from new-begin to to-index
-                 do (vector-push-extend (cons (- (1- i)) (- (1+ i))) cells))
+                 do (vector-push-extend (cons (- (1- i)) (- (1+ i))) cells)
+                    (da-set-dirty da i))
            (let ((free-tail (- (da-get-base da (da-get-free-list da)))))
              (da-set-check da free-tail (- new-begin))
              (da-set-base da new-begin (- free-tail))
@@ -251,10 +263,15 @@
 (defun da-save (da path)
   (with-open-file (out path :direction :output
                             :element-type '(signed-byte 32)
-                            :if-exists :supersede)
-    (loop for x across (da-cells da)
-          do (write-byte (car x) out)
-             (write-byte (cdr x) out))))
+                            :if-exists :overwrite
+                                       :if-does-not-exist :create)
+    (loop with cells = (da-cells da)
+          for s in (sort (da-dirty-list da) #'<=)
+          for cell = (aref cells s)
+          do (file-position out (* 2 s))
+             (write-byte (car cell) out)
+             (write-byte (cdr cell) out))
+    (da-clear-dirty da)))
 
 (defun da-load (da path)
   (if (probe-file path)
@@ -266,4 +283,5 @@
                 for b = (read-byte in nil)
                 while a
                 do (vector-push-extend (cons a b) cells))
+          (da-clear-dirty da)
           da))))
